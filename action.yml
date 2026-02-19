@@ -1,0 +1,91 @@
+name: 'Kai Selective CI'
+description: 'Run Kai semantic change detection for selective CI — only test what changed.'
+branding:
+  icon: 'zap'
+  color: 'blue'
+
+inputs:
+  version:
+    description: 'Kai version to install (e.g. v0.3.0). Use "latest" for the most recent release.'
+    required: false
+    default: 'latest'
+  command:
+    description: 'Which kai ci subcommand to run (plan, ingest, report).'
+    required: false
+    default: 'plan'
+  args:
+    description: 'Arguments passed to the kai ci subcommand.'
+    required: true
+
+outputs:
+  plan-file:
+    description: 'Path to the generated plan JSON file.'
+    value: ${{ steps.run.outputs.plan-file }}
+  mode:
+    description: 'Plan mode: selective, full, or skip.'
+    value: ${{ steps.parse.outputs.mode }}
+  confidence:
+    description: 'Plan confidence score (0.0–1.0).'
+    value: ${{ steps.parse.outputs.confidence }}
+  targets-count:
+    description: 'Number of test targets selected by the plan.'
+    value: ${{ steps.parse.outputs.targets-count }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install Kai
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        VERSION="${{ inputs.version }}"
+
+        if [ "$VERSION" = "latest" ]; then
+          DOWNLOAD_URL="https://github.com/kailayerhq/kai/releases/latest/download/kai-linux-amd64.gz"
+        else
+          DOWNLOAD_URL="https://github.com/kailayerhq/kai/releases/download/${VERSION}/kai-linux-amd64.gz"
+        fi
+
+        echo "::group::Installing Kai ${VERSION}"
+        curl -fsSL "$DOWNLOAD_URL" | gunzip > kai
+        chmod +x kai
+        sudo mv kai /usr/local/bin/kai
+        echo "Installed: $(kai --version 2>/dev/null || echo 'kai binary ready')"
+        echo "::endgroup::"
+
+    - name: Run Kai
+      id: run
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        COMMAND="${{ inputs.command }}"
+        ARGS="${{ inputs.args }}"
+
+        echo "::group::kai ci ${COMMAND}"
+        kai ci ${COMMAND} ${ARGS}
+        EXIT_CODE=$?
+        echo "::endgroup::"
+
+        if [ "$COMMAND" = "plan" ] && [ -f plan.json ]; then
+          echo "plan-file=$(pwd)/plan.json" >> "$GITHUB_OUTPUT"
+        fi
+
+        exit $EXIT_CODE
+
+    - name: Parse plan outputs
+      id: parse
+      if: inputs.command == 'plan'
+      shell: bash
+      run: |
+        PLAN_FILE="${{ steps.run.outputs.plan-file }}"
+
+        if [ -z "$PLAN_FILE" ] || [ ! -f "$PLAN_FILE" ]; then
+          echo "No plan file found — skipping output parsing."
+          exit 0
+        fi
+
+        echo "mode=$(jq -r '.mode' "$PLAN_FILE")" >> "$GITHUB_OUTPUT"
+        echo "confidence=$(jq -r '.safety.confidence' "$PLAN_FILE")" >> "$GITHUB_OUTPUT"
+        echo "targets-count=$(jq '.targets.run | length' "$PLAN_FILE")" >> "$GITHUB_OUTPUT"

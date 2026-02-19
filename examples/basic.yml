@@ -1,0 +1,22 @@
+name: Kai Selective CI
+on: pull_request
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: kailayerhq/kai-action@v1
+        id: kai
+        with:
+          args: '--git-range ${{ github.event.pull_request.base.sha }}..${{ github.sha }} --out plan.json'
+
+      - name: Show plan
+        run: |
+          echo "Mode: ${{ steps.kai.outputs.mode }}"
+          echo "Confidence: ${{ steps.kai.outputs.confidence }}"
+          echo "Targets: ${{ steps.kai.outputs.targets-count }}"
+          cat plan.json

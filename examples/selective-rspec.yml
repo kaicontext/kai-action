@@ -1,0 +1,38 @@
+name: Selective RSpec
+on: pull_request
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - uses: kailayerhq/kai-action@v1
+        id: kai
+        with:
+          args: '--git-range ${{ github.event.pull_request.base.sha }}..${{ github.sha }} --out plan.json'
+
+      - name: Run RSpec
+        if: steps.kai.outputs.mode != 'skip'
+        run: |
+          if [ "${{ steps.kai.outputs.mode }}" = "selective" ]; then
+            TARGETS=$(jq -r '.targets.run[]' plan.json | tr '\n' ' ')
+            echo "Running selective: $TARGETS"
+            bundle exec rspec $TARGETS --format json --out results.json
+          else
+            echo "Running full suite"
+            bundle exec rspec --format json --out results.json
+          fi
+
+      - name: Ingest coverage
+        if: always() && steps.kai.outputs.mode != 'skip'
+        uses: kailayerhq/kai-action@v1
+        with:
+          command: ingest
+          args: '--coverage coverage/.resultset.json --results results.json'

@@ -1,0 +1,40 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-install:
+    name: Verify Kai installs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Test action (install + version check)
+        uses: ./
+        id: kai
+        with:
+          command: plan
+          args: '--help'
+
+  test-plan:
+    name: Verify plan on sample repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run kai ci plan
+        uses: ./
+        id: kai
+        with:
+          args: '--git-range HEAD~1..HEAD --out plan.json'
+
+      - name: Check outputs
+        run: |
+          echo "Mode: ${{ steps.kai.outputs.mode }}"
+          echo "Confidence: ${{ steps.kai.outputs.confidence }}"
+          echo "Targets: ${{ steps.kai.outputs.targets-count }}"
