@@ -10,7 +10,7 @@ jobs:
     name: Verify Kai installs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Test action (install + version check)
         uses: ./
@@ -23,7 +23,7 @@ jobs:
     name: Verify plan on sample repo
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
